@@ -42,4 +42,6 @@ wandb/
 
 !/latentsync/utils/mask.png
 /checkpoints/
+huggingface/
+torch/
 !/assets/*
