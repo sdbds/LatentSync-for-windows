@@ -80,9 +80,11 @@ LatentSync uses the Whisper to convert melspectrogram into audio embeddings, whi
 
 Install the required packages and download the checkpoints via:
 
-```bash
+~~```bash~~
 source setup_env.sh
-```
+~~```~~
+
+powershell run with `1、install-uv-qinglong.ps1` (right click then choose `use powershell run`) auto install in one-clik
 
 If the download is successful, the checkpoints should appear as follows:
 
@@ -111,9 +113,11 @@ These already include all the checkpoints required for latentsync training and i
 
 Run the Gradio app for inference, which requires about 6.5 GB GPU memory.
 
-```bash
+~~```bash~~
 python gradio_app.py
-```
+~~```~~
+
+powershell run with `2、run_gui.ps1` (right click then choose `use powershell run`)
 
 ### 2. Command Line Interface
 
