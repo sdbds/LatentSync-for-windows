@@ -78,6 +78,12 @@ LatentSync uses the Whisper to convert melspectrogram into audio embeddings, whi
 
 ## 🔧 Setting up the Environment
 
+  Give unrestricted script access to powershell so venv can work:
+
+- Open an administrator powershell window
+- Type `Set-ExecutionPolicy Unrestricted` and answer A
+- Close admin powershell window
+
 Install the required packages and download the checkpoints via:
 
 ~~```bash~~
