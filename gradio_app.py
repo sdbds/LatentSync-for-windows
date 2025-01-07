@@ -4,7 +4,6 @@ from scripts.inference import main
 from omegaconf import OmegaConf
 import argparse
 from datetime import datetime
-import glob
 
 CONFIG_PATH = Path("configs/unet/second_stage.yaml")
 CHECKPOINT_PATH = Path("checkpoints/latentsync_unet.pt")
@@ -85,18 +84,6 @@ def create_args(
     )
 
 
-def get_example_pairs():
-    """获取assets目录下的示例文件对"""
-    video_files = glob.glob('assets/*.mp4')
-    examples = []
-    for video in video_files:
-        stem = Path(video).stem
-        audio = f'assets/{stem}.wav'
-        if Path(audio).exists():
-            examples.append([video, audio])
-    return examples
-
-
 # Create Gradio interface
 with gr.Blocks(title="LatentSync Video Processing") as demo:
     gr.Markdown(
@@ -153,7 +140,11 @@ with gr.Blocks(title="LatentSync Video Processing") as demo:
             video_output = gr.Video(label="Output Video")
 
             gr.Examples(
-                examples=get_example_pairs(),
+                examples=[
+                    ["assets/demo1_video.mp4", "assets/demo1_audio.wav"],
+                    ["assets/demo2_video.mp4", "assets/demo2_audio.wav"],
+                    ["assets/demo3_video.mp4", "assets/demo3_audio.wav"],
+                ],
                 inputs=[video_input, audio_input],
             )
 
