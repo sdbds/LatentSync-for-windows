@@ -107,6 +107,16 @@ These already include all the checkpoints required for latentsync training and i
 
 ## 🚀 Inference
 
+### 1. Gradio App
+
+Run the Gradio app for inference, which requires about 6.5 GB GPU memory.
+
+```bash
+python gradio_app.py
+```
+
+### 2. Command Line Interface
+
 Run the script for inference, which requires about 6.5 GB GPU memory.
 
 ```bash
