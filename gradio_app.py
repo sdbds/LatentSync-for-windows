@@ -4,6 +4,7 @@ from scripts.inference import main
 from omegaconf import OmegaConf
 import argparse
 from datetime import datetime
+import glob
 
 CONFIG_PATH = Path("configs/unet/second_stage.yaml")
 CHECKPOINT_PATH = Path("checkpoints/latentsync_unet.pt")
@@ -13,13 +14,7 @@ def process_video(
     video_path,
     audio_path,
     guidance_scale,
-    sync_loss_weight,
-    perceptual_loss_weight,
-    recon_loss_weight,
-    trepa_loss_weight,
     inference_steps,
-    mixed_noise_alpha,
-    use_mixed_noise,
     seed,
 ):
     # Create the temp directory if it doesn't exist
@@ -28,8 +23,8 @@ def process_video(
 
     # Convert paths to absolute Path objects and normalize them
     video_file_path = Path(video_path)
-    video_path = str(video_file_path.absolute()).replace("\\", "/")
-    audio_path = str(Path(audio_path).absolute()).replace("\\", "/")
+    video_path = video_file_path.absolute().as_posix()
+    audio_path = Path(audio_path).absolute().as_posix()
 
     current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
     # Set the output path for the processed video
@@ -42,13 +37,7 @@ def process_video(
     config["run"].update(
         {
             "guidance_scale": guidance_scale,
-            "sync_loss_weight": sync_loss_weight,
-            "perceptual_loss_weight": perceptual_loss_weight,
-            "recon_loss_weight": recon_loss_weight,
-            "trepa_loss_weight": trepa_loss_weight,
             "inference_steps": inference_steps,
-            "mixed_noise_alpha": mixed_noise_alpha,
-            "use_mixed_noise": use_mixed_noise,
         }
     )
 
@@ -81,7 +70,7 @@ def create_args(
     return parser.parse_args(
         [
             "--inference_ckpt_path",
-            str(CHECKPOINT_PATH.absolute()).replace("\\", "/"),
+            CHECKPOINT_PATH.absolute().as_posix(),
             "--video_path",
             video_path,
             "--audio_path",
@@ -94,6 +83,18 @@ def create_args(
             str(seed),
         ]
     )
+
+
+def get_example_pairs():
+    """获取assets目录下的示例文件对"""
+    video_files = glob.glob('assets/*.mp4')
+    examples = []
+    for video in video_files:
+        stem = Path(video).stem
+        audio = f'assets/{stem}.wav'
+        if Path(audio).exists():
+            examples.append([video, audio])
+    return examples
 
 
 # Create Gradio interface
@@ -144,48 +145,17 @@ with gr.Blocks(title="LatentSync Video Processing") as demo:
                 )
 
             with gr.Row():
-                sync_loss_weight = gr.Slider(
-                    minimum=0.01,
-                    maximum=1.0,
-                    value=0.05,
-                    step=0.01,
-                    label="Sync Loss Weight",
-                )
-                perceptual_loss_weight = gr.Slider(
-                    minimum=0.01,
-                    maximum=1.0,
-                    value=0.1,
-                    step=0.01,
-                    label="Perceptual Loss Weight",
-                )
+                seed = gr.Number(value=1247, label="Random Seed", precision=0)
 
-            with gr.Row():
-                recon_loss_weight = gr.Slider(
-                    minimum=0.1,
-                    maximum=5.0,
-                    value=1.0,
-                    step=0.1,
-                    label="Reconstruction Loss Weight",
-                )
-                trepa_loss_weight = gr.Slider(
-                    minimum=1, maximum=20, value=10, step=1, label="Trepa Loss Weight"
-                )
-
-            with gr.Row():
-                mixed_noise_alpha = gr.Slider(
-                    minimum=0.1,
-                    maximum=2.0,
-                    value=1.0,
-                    step=0.1,
-                    label="Mixed Noise Alpha",
-                )
-                use_mixed_noise = gr.Checkbox(value=True, label="Use Mixed Noise")
-
-            seed = gr.Number(value=1247, label="Random Seed", precision=0)
             process_btn = gr.Button("Process Video")
 
         with gr.Column():
             video_output = gr.Video(label="Output Video")
+
+            gr.Examples(
+                examples=get_example_pairs(),
+                inputs=[video_input, audio_input],
+            )
 
     process_btn.click(
         fn=process_video,
@@ -193,13 +163,7 @@ with gr.Blocks(title="LatentSync Video Processing") as demo:
             video_input,
             audio_input,
             guidance_scale,
-            sync_loss_weight,
-            perceptual_loss_weight,
-            recon_loss_weight,
-            trepa_loss_weight,
             inference_steps,
-            mixed_noise_alpha,
-            use_mixed_noise,
             seed,
         ],
         outputs=video_output,
