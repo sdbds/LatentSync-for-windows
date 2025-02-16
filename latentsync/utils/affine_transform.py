@@ -36,10 +36,10 @@ class AlignRestore(object):
     def __init__(self, align_points=3):
         if align_points == 3:
             self.upscale_factor = 1
-            self.crop_ratio = (2.8, 2.8)
+            ratio = 2.8
+            self.crop_ratio = (ratio, ratio)
             self.face_template = np.array([[19 - 2, 30 - 10], [56 + 2, 30 - 10], [37.5, 45 - 5]])
-            self.face_template = self.face_template * 2.8
-            # self.face_size = (int(100 * self.crop_ratio[0]), int(100 * self.crop_ratio[1]))
+            self.face_template = self.face_template * ratio
             self.face_size = (int(75 * self.crop_ratio[0]), int(100 * self.crop_ratio[1]))
             self.p_bias = None
 
@@ -58,8 +58,14 @@ class AlignRestore(object):
             border_mode = cv2.BORDER_REFLECT101
         elif border_mode == "reflect":
             border_mode = cv2.BORDER_REFLECT
+
         cropped_face = cv2.warpAffine(
-            img, affine_matrix, self.face_size, borderMode=border_mode, borderValue=[127, 127, 127]
+            img,
+            affine_matrix,
+            self.face_size,
+            flags=cv2.INTER_LANCZOS4,
+            borderMode=border_mode,
+            borderValue=[127, 127, 127],
         )
         return cropped_face, affine_matrix
 
@@ -87,7 +93,7 @@ class AlignRestore(object):
         else:
             extra_offset = 0
         inverse_affine[:, 2] += extra_offset
-        inv_restored = cv2.warpAffine(face, inverse_affine, (w_up, h_up))
+        inv_restored = cv2.warpAffine(face, inverse_affine, (w_up, h_up), flags=cv2.INTER_LANCZOS4)
         mask = np.ones((self.face_size[1], self.face_size[0]), dtype=np.float32)
         inv_mask = cv2.warpAffine(mask, inverse_affine, (w_up, h_up))
         inv_mask_erosion = cv2.erode(

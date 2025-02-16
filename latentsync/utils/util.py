@@ -363,3 +363,10 @@ def count_video_time(video_path):
     frame_count = video.get(cv2.CAP_PROP_FRAME_COUNT)
     fps = video.get(cv2.CAP_PROP_FPS)
     return frame_count / fps
+
+
+def check_ffmpeg_installed():
+    # Run the ffmpeg command with the -version argument to check if it's installed
+    result = subprocess.run("ffmpeg -version", stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+    if not result.returncode == 0:
+        raise FileNotFoundError("ffmpeg not found, please install it by:\n    $ conda install -c conda-forge ffmpeg")

@@ -24,6 +24,10 @@ from latentsync.whisper.audio2feature import Audio2Feature
 
 
 def main(config, args):
+    # Check if the GPU supports float16
+    is_fp16_supported = torch.cuda.is_available() and torch.cuda.get_device_capability()[0] > 7
+    dtype = torch.float16 if is_fp16_supported else torch.float32
+
     print(f"Input video path: {args.video_path}")
     print(f"Input audio path: {args.audio_path}")
     print(f"Loaded checkpoint path: {args.inference_ckpt_path}")
@@ -39,7 +43,7 @@ def main(config, args):
 
     audio_encoder = Audio2Feature(model_path=whisper_model_path, device="cuda", num_frames=config.data.num_frames)
 
-    vae = AutoencoderKL.from_pretrained("stabilityai/sd-vae-ft-mse", torch_dtype=torch.float16)
+    vae = AutoencoderKL.from_pretrained("stabilityai/sd-vae-ft-mse", torch_dtype=dtype)
     vae.config.scaling_factor = 0.18215
     vae.config.shift_factor = 0
 
@@ -49,7 +53,7 @@ def main(config, args):
         device="cpu",
     )
 
-    unet = unet.to(dtype=torch.float16)
+    unet = unet.to(dtype=dtype)
 
     # set xformers
     if is_xformers_available():
@@ -75,9 +79,9 @@ def main(config, args):
         video_out_path=args.video_out_path,
         video_mask_path=args.video_out_path.replace(".mp4", "_mask.mp4"),
         num_frames=config.data.num_frames,
-        num_inference_steps=config.run.inference_steps,
+        num_inference_steps=args.inference_steps,
         guidance_scale=args.guidance_scale,
-        weight_dtype=torch.float16,
+        weight_dtype=dtype,
         width=config.data.resolution,
         height=config.data.resolution,
     )
@@ -90,6 +94,7 @@ if __name__ == "__main__":
     parser.add_argument("--video_path", type=str, required=True)
     parser.add_argument("--audio_path", type=str, required=True)
     parser.add_argument("--video_out_path", type=str, required=True)
+    parser.add_argument("--inference_steps", type=int, default=20)
     parser.add_argument("--guidance_scale", type=float, default=1.0)
     parser.add_argument("--seed", type=int, default=1247)
     args = parser.parse_args()

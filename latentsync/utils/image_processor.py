@@ -31,7 +31,7 @@ https://stackoverflow.com/questions/23853632/which-kind-of-interpolation-best-fo
 def load_fixed_mask(resolution: int) -> torch.Tensor:
     mask_image = cv2.imread("latentsync/utils/mask.png")
     mask_image = cv2.cvtColor(mask_image, cv2.COLOR_BGR2RGB)
-    mask_image = cv2.resize(mask_image, (resolution, resolution), interpolation=cv2.INTER_AREA) / 255.0
+    mask_image = cv2.resize(mask_image, (resolution, resolution), interpolation=cv2.INTER_LANCZOS4) / 255.0
     mask_image = rearrange(torch.from_numpy(mask_image), "h w c -> c h w")
     return mask_image
 
@@ -136,7 +136,7 @@ class ImageProcessor:
             image.copy(), lmks3=lmk3_, smooth=True, border_mode="constant"
         )
         box = [0, 0, face.shape[1], face.shape[0]]  # x1, y1, x2, y2
-        face = cv2.resize(face, (self.resolution, self.resolution), interpolation=cv2.INTER_CUBIC)
+        face = cv2.resize(face, (self.resolution, self.resolution), interpolation=cv2.INTER_LANCZOS4)
         face = rearrange(torch.from_numpy(face), "h w c -> c h w")
         return face, box, affine_matrix
 

@@ -14,7 +14,7 @@ pip install -r requirements.txt
 sudo apt -y install libgl1
 
 # Download all the checkpoints from HuggingFace
-huggingface-cli download chunyu-li/LatentSync --local-dir checkpoints --exclude "*.git*" "README.md"
+huggingface-cli download ByteDance/LatentSync --local-dir checkpoints --exclude "*.git*" "README.md"
 
 # Soft links for the auxiliary models
 mkdir -p ~/.cache/torch/hub/checkpoints

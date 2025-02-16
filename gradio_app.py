@@ -27,9 +27,7 @@ def process_video(
 
     current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
     # Set the output path for the processed video
-    output_path = str(
-        output_dir / f"{video_file_path.stem}_{current_time}.mp4"
-    )  # Change the filename as needed
+    output_path = str(output_dir / f"{video_file_path.stem}_{current_time}.mp4")  # Change the filename as needed
 
     config = OmegaConf.load(CONFIG_PATH)
 
@@ -41,7 +39,7 @@ def process_video(
     )
 
     # Parse the arguments
-    args = create_args(video_path, audio_path, output_path, guidance_scale, seed)
+    args = create_args(video_path, audio_path, output_path, inference_steps, guidance_scale, seed)
 
     try:
         result = main(
@@ -56,13 +54,14 @@ def process_video(
 
 
 def create_args(
-    video_path: str, audio_path: str, output_path: str, guidance_scale: float, seed: int
+    video_path: str, audio_path: str, output_path: str, inference_steps: int, guidance_scale: float, seed: int
 ) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--inference_ckpt_path", type=str, required=True)
     parser.add_argument("--video_path", type=str, required=True)
     parser.add_argument("--audio_path", type=str, required=True)
     parser.add_argument("--video_out_path", type=str, required=True)
+    parser.add_argument("--inference_steps", type=int, default=20)
     parser.add_argument("--guidance_scale", type=float, default=1.0)
     parser.add_argument("--seed", type=int, default=1247)
 
@@ -76,6 +75,8 @@ def create_args(
             audio_path,
             "--video_out_path",
             output_path,
+            "--inference_steps",
+            str(inference_steps),
             "--guidance_scale",
             str(guidance_scale),
             "--seed",
@@ -121,15 +122,13 @@ with gr.Blocks(title="LatentSync Video Processing") as demo:
 
             with gr.Row():
                 guidance_scale = gr.Slider(
-                    minimum=0.1,
-                    maximum=3.0,
-                    value=1.0,
-                    step=0.1,
+                    minimum=1.0,
+                    maximum=3.5,
+                    value=1.5,
+                    step=0.5,
                     label="Guidance Scale",
                 )
-                inference_steps = gr.Slider(
-                    minimum=1, maximum=50, value=20, step=1, label="Inference Steps"
-                )
+                inference_steps = gr.Slider(minimum=10, maximum=50, value=20, step=1, label="Inference Steps")
 
             with gr.Row():
                 seed = gr.Number(value=1247, label="Random Seed", precision=0)

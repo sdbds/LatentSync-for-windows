@@ -3,6 +3,7 @@
 <div align="center">
 
 [![arXiv](https://img.shields.io/badge/arXiv_paper-2412.09262-b31b1b)](https://arxiv.org/abs/2412.09262)
+[![arXiv](https://img.shields.io/badge/%F0%9F%A4%97%20space-HuggingFace-yellow)](https://huggingface.co/spaces/fffiloni/LatentSync)
 <a href="https://replicate.com/lucataco/latentsync"><img src="https://replicate.com/lucataco/latentsync/badge" alt="Replicate"></a>
 
 </div>
@@ -17,7 +18,7 @@ We present *LatentSync*, an end-to-end lip sync framework based on audio conditi
 <img src="assets/framework.png" width=100%>
 <p>
 
-LatentSync uses the Whisper to convert melspectrogram into audio embeddings, which are then integrated into the U-Net via cross-attention layers. The reference and masked frames are channel-wise concatenated with noised latents as the input of U-Net. In the training process, we use one-step method to get estimated clean latents from predicted noises, which are then decoded to obtain the estimated clean frames. The TREPA, LPIPS and SyncNet loss are added in the pixel space.
+LatentSync uses the [Whisper](https://github.com/openai/whisper) to convert melspectrogram into audio embeddings, which are then integrated into the U-Net via cross-attention layers. The reference and masked frames are channel-wise concatenated with noised latents as the input of U-Net. In the training process, we use a one-step method to get estimated clean latents from predicted noises, which are then decoded to obtain the estimated clean frames. The TREPA, [LPIPS](https://arxiv.org/abs/1801.03924) and [SyncNet](https://www.robots.ox.ac.uk/~vgg/publications/2016/Chung16a/chung16a.pdf) losses are added in the pixel space.
 
 ## 🎬 Demo
 
@@ -103,17 +104,29 @@ If the download is successful, the checkpoints should appear as follows:
 |   `-- vit_g_hybrid_pt_1200e_ssv2_ft.pth
 ```
 
-These already include all the checkpoints required for latentsync training and inference. If you just want to try inference, you only need to download `latentsync_unet.pt` and `tiny.pt` from our [HuggingFace repo](https://huggingface.co/chunyu-li/LatentSync)
+These already include all the checkpoints required for latentsync training and inference. If you just want to try inference, you only need to download `latentsync_unet.pt` and `tiny.pt` from our [HuggingFace repo](https://huggingface.co/ByteDance/LatentSync)
 
 ## 🚀 Inference
 
-Run the script for inference, which requires about 6.5 GB GPU memory.
+There are two ways to perform inference, and both require 6.5 GB of VRAM.
+
+### 1. Gradio App
+
+Run the Gradio app for inference:
+
+```bash
+python gradio_app.py
+```
+
+### 2. Command Line Interface
+
+Run the script for inference:
 
 ```bash
 ./inference.sh
 ```
 
-You can change the parameter `guidance_scale` to 1.5 to improve the lip-sync accuracy.
+You can change the parameters `inference_steps` and `guidance_scale` to see more results.
 
 ## 🔄 Data Processing Pipeline
 
@@ -134,7 +147,7 @@ Run the script to execute the data processing pipeline:
 ./data_processing_pipeline.sh
 ```
 
-You can change the parameter `input_dir` in the script to specify the data directory to be processed. The processed data will be saved in the same directory. Each step will generate a new directory to prevent the need to redo the entire pipeline in case the process is interrupted by an unexpected error.
+You can change the parameter `input_dir` in the script to specify the data directory to be processed. The processed data will be saved in the `high_visual_quality` directory. Each step will generate a new directory to prevent the need to redo the entire pipeline in case the process is interrupted by an unexpected error.
 
 ## 🏋️‍♂️ Training U-Net
 
@@ -157,3 +170,24 @@ In case you want to train SyncNet on your own datasets, you can run the followin
 ```
 
 After `validations_steps` training, the loss charts will be saved in `train_output_dir`. They contain both the training and validation loss.
+
+## 📊 Evaluation
+
+You can evaluate the [sync confidence score](https://www.robots.ox.ac.uk/~vgg/publications/2016/Chung16a/chung16a.pdf) of a generated video by running the following script:
+
+```bash
+./eval/eval_sync_conf.sh
+```
+
+You can evaluate the accuracy of SyncNet on a dataset by running the following script:
+
+```bash
+./eval/eval_syncnet_acc.sh
+```
+
+## 🙏 Acknowledgement
+
+- Our code is built on [AnimateDiff](https://github.com/guoyww/AnimateDiff). 
+- Some code are borrowed from [MuseTalk](https://github.com/TMElyralab/MuseTalk), [StyleSync](https://github.com/guanjz20/StyleSync), [SyncNet](https://github.com/joonson/syncnet_python), [Wav2Lip](https://github.com/Rudrabha/Wav2Lip).
+
+Thanks for their generous contributions to the open-source community.
