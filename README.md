@@ -79,11 +79,19 @@ LatentSync uses the [Whisper](https://github.com/openai/whisper) to convert mels
 
 ## 🔧 Setting up the Environment
 
+  Give unrestricted script access to powershell so venv can work:
+
+- Open an administrator powershell window
+- Type `Set-ExecutionPolicy Unrestricted` and answer A
+- Close admin powershell window
+
 Install the required packages and download the checkpoints via:
 
-```bash
+~~```bash~~
 source setup_env.sh
-```
+~~```~~
+
+powershell run with `1、install-uv-qinglong.ps1` (right click then choose `use powershell run`) auto install in one-clik
 
 If the download is successful, the checkpoints should appear as follows:
 
@@ -108,19 +116,19 @@ These already include all the checkpoints required for latentsync training and i
 
 ## 🚀 Inference
 
-There are two ways to perform inference, and both require 6.5 GB of VRAM.
-
 ### 1. Gradio App
 
-Run the Gradio app for inference:
+Run the Gradio app for inference, which requires about 6.5 GB GPU memory.
 
-```bash
+~~```bash~~
 python gradio_app.py
-```
+~~```~~
+
+powershell run with `2、run_gui.ps1` (right click then choose `use powershell run`)
 
 ### 2. Command Line Interface
 
-Run the script for inference:
+Run the script for inference, which requires about 6.5 GB GPU memory.
 
 ```bash
 ./inference.sh
