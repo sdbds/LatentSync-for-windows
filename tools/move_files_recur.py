@@ -42,7 +42,8 @@ def main(input_dir, output_dir):
 
 
 if __name__ == "__main__":
-    input_dir = "/mnt/bn/maliva-gen-ai-v2/chunyu.li/multilingual_dcc"
-    output_dir = "/mnt/bn/maliva-gen-ai-v2/chunyu.li/multilingual"
+    # from input_dir to output_dir
+    input_dir = "/mnt/bn/maliva-gen-ai-v2/chunyu.li/willdata2"
+    output_dir = "/mnt/bn/maliva-gen-ai-v2/chunyu.li/willdata"
 
     main(input_dir, output_dir)

@@ -28,8 +28,8 @@ https://stackoverflow.com/questions/23853632/which-kind-of-interpolation-best-fo
 """
 
 
-def load_fixed_mask(resolution: int) -> torch.Tensor:
-    mask_image = cv2.imread("latentsync/utils/mask.png")
+def load_fixed_mask(resolution: int, mask_image_path="latentsync/utils/mask.png") -> torch.Tensor:
+    mask_image = cv2.imread(mask_image_path)
     mask_image = cv2.cvtColor(mask_image, cv2.COLOR_BGR2RGB)
     mask_image = cv2.resize(mask_image, (resolution, resolution), interpolation=cv2.INTER_LANCZOS4) / 255.0
     mask_image = rearrange(torch.from_numpy(mask_image), "h w c -> c h w")
@@ -115,7 +115,7 @@ class ImageProcessor:
 
         return pixel_values, masked_pixel_values, mask
 
-    def affine_transform(self, image: torch.Tensor) -> np.ndarray:
+    def affine_transform(self, image: torch.Tensor, allow_multi_faces: bool = True) -> np.ndarray:
         # image = rearrange(image, "c h w-> h w c").numpy()
         if self.fa is None:
             landmark_coordinates = np.array(self.detect_facial_landmarks(image))
@@ -124,6 +124,8 @@ class ImageProcessor:
             detected_faces = self.fa.get_landmarks(image)
             if detected_faces is None:
                 raise RuntimeError("Face not detected")
+            if not allow_multi_faces and len(detected_faces) > 1:
+                raise RuntimeError("More than one face detected")
             lm68 = detected_faces[0]
 
         points = self.smoother.smooth(lm68)
@@ -153,7 +155,7 @@ class ImageProcessor:
         if isinstance(images, np.ndarray):
             images = torch.from_numpy(images)
         if images.shape[3] == 3:
-            images = rearrange(images, "b h w c -> b c h w")
+            images = rearrange(images, "f h w c -> f c h w")
         if self.mask == "fix_mask":
             results = [self.preprocess_fixed_mask_image(image, affine_transform=affine_transform) for image in images]
         else:
@@ -166,7 +168,7 @@ class ImageProcessor:
         if isinstance(images, np.ndarray):
             images = torch.from_numpy(images)
         if images.shape[3] == 3:
-            images = rearrange(images, "b h w c -> b c h w")
+            images = rearrange(images, "f h w c -> f c h w")
         images = self.resize(images)
         pixel_values = self.normalize(images / 255.0)
         return pixel_values
@@ -321,7 +323,7 @@ face_surround_landmarks = [
 
 if __name__ == "__main__":
     image_processor = ImageProcessor(512, mask="fix_mask")
-    video = cv2.VideoCapture("/mnt/bn/maliva-gen-ai-v2/chunyu.li/HDTF/original/val/RD_Radio57_000.mp4")
+    video = cv2.VideoCapture("assets/demo1_video.mp4")
     while True:
         ret, frame = video.read()
         # if not ret:

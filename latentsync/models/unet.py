@@ -9,8 +9,8 @@ import torch.nn as nn
 import torch.utils.checkpoint
 
 from diffusers.configuration_utils import ConfigMixin, register_to_config
-from diffusers.modeling_utils import ModelMixin
-from diffusers import UNet2DConditionModel
+from diffusers.models import ModelMixin
+
 from diffusers.utils import BaseOutput, logging
 from diffusers.models.embeddings import TimestepEmbedding, Timesteps
 from .unet_blocks import (
@@ -25,7 +25,6 @@ from .unet_blocks import (
 from .resnet import InflatedConv3d, InflatedGroupNorm
 
 from ..utils.util import zero_rank_log
-from einops import rearrange
 from .utils import zero_module
 
 
@@ -81,11 +80,7 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin):
         motion_module_decoder_only=False,
         motion_module_type=None,
         motion_module_kwargs={},
-        unet_use_cross_frame_attention=False,
-        unet_use_temporal_attention=False,
         add_audio_layer=False,
-        audio_condition_method: str = "cross_attn",
-        custom_audio_layer=False,
     ):
         super().__init__()
 
@@ -148,8 +143,6 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin):
                 only_cross_attention=only_cross_attention[i],
                 upcast_attention=upcast_attention,
                 resnet_time_scale_shift=resnet_time_scale_shift,
-                unet_use_cross_frame_attention=unet_use_cross_frame_attention,
-                unet_use_temporal_attention=unet_use_temporal_attention,
                 use_inflated_groupnorm=use_inflated_groupnorm,
                 use_motion_module=use_motion_module
                 and (res in motion_module_resolutions)
@@ -157,8 +150,6 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin):
                 motion_module_type=motion_module_type,
                 motion_module_kwargs=motion_module_kwargs,
                 add_audio_layer=add_audio_layer,
-                audio_condition_method=audio_condition_method,
-                custom_audio_layer=custom_audio_layer,
             )
             self.down_blocks.append(down_block)
 
@@ -177,15 +168,11 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin):
                 dual_cross_attention=dual_cross_attention,
                 use_linear_projection=use_linear_projection,
                 upcast_attention=upcast_attention,
-                unet_use_cross_frame_attention=unet_use_cross_frame_attention,
-                unet_use_temporal_attention=unet_use_temporal_attention,
                 use_inflated_groupnorm=use_inflated_groupnorm,
                 use_motion_module=use_motion_module and motion_module_mid_block,
                 motion_module_type=motion_module_type,
                 motion_module_kwargs=motion_module_kwargs,
                 add_audio_layer=add_audio_layer,
-                audio_condition_method=audio_condition_method,
-                custom_audio_layer=custom_audio_layer,
             )
         else:
             raise ValueError(f"unknown mid_block_type : {mid_block_type}")
@@ -231,15 +218,11 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin):
                 only_cross_attention=only_cross_attention[i],
                 upcast_attention=upcast_attention,
                 resnet_time_scale_shift=resnet_time_scale_shift,
-                unet_use_cross_frame_attention=unet_use_cross_frame_attention,
-                unet_use_temporal_attention=unet_use_temporal_attention,
                 use_inflated_groupnorm=use_inflated_groupnorm,
                 use_motion_module=use_motion_module and (res in motion_module_resolutions),
                 motion_module_type=motion_module_type,
                 motion_module_kwargs=motion_module_kwargs,
                 add_audio_layer=add_audio_layer,
-                audio_condition_method=audio_condition_method,
-                custom_audio_layer=custom_audio_layer,
             )
             self.up_blocks.append(up_block)
             prev_output_channel = output_channel
@@ -330,7 +313,7 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin):
         self,
         sample: torch.FloatTensor,
         timestep: Union[torch.Tensor, float, int],
-        encoder_hidden_states: torch.Tensor,
+        encoder_hidden_states: torch.Tensor = None,
         class_labels: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         # support controlnet
@@ -489,39 +472,40 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin):
 
     def load_state_dict(self, state_dict, strict=True):
         # If the loaded checkpoint's in_channels or out_channels are different from config
-        temp_state_dict = copy.deepcopy(state_dict)
-        if temp_state_dict["conv_in.weight"].shape[1] != self.config.in_channels:
-            del temp_state_dict["conv_in.weight"]
-            del temp_state_dict["conv_in.bias"]
-        if temp_state_dict["conv_out.weight"].shape[0] != self.config.out_channels:
-            del temp_state_dict["conv_out.weight"]
-            del temp_state_dict["conv_out.bias"]
+        if state_dict["conv_in.weight"].shape[1] != self.config.in_channels:
+            del state_dict["conv_in.weight"]
+            del state_dict["conv_in.bias"]
+        if state_dict["conv_out.weight"].shape[0] != self.config.out_channels:
+            del state_dict["conv_out.weight"]
+            del state_dict["conv_out.bias"]
 
         # If the loaded checkpoint's cross_attention_dim is different from config
         keys_to_remove = []
-        for key in temp_state_dict:
-            if "audio_cross_attn.attn.to_k." in key or "audio_cross_attn.attn.to_v." in key:
-                if temp_state_dict[key].shape[1] != self.config.cross_attention_dim:
+        for key in state_dict:
+            if "attn2.to_k." in key or "attn2.to_v." in key:
+                if state_dict[key].shape[1] != self.config.cross_attention_dim:
                     keys_to_remove.append(key)
 
         for key in keys_to_remove:
-            del temp_state_dict[key]
+            del state_dict[key]
 
-        return super().load_state_dict(state_dict=temp_state_dict, strict=strict)
+        return super().load_state_dict(state_dict=state_dict, strict=strict)
 
     @classmethod
     def from_pretrained(cls, model_config: dict, ckpt_path: str, device="cpu"):
         unet = cls.from_config(model_config).to(device)
         if ckpt_path != "":
             zero_rank_log(logger, f"Load from checkpoint: {ckpt_path}")
-            ckpt = torch.load(ckpt_path, map_location=device)
+            ckpt = torch.load(ckpt_path, map_location=device, weights_only=True)
             if "global_step" in ckpt:
                 zero_rank_log(logger, f"resume from global_step: {ckpt['global_step']}")
                 resume_global_step = ckpt["global_step"]
             else:
                 resume_global_step = 0
-            state_dict = ckpt["state_dict"] if "state_dict" in ckpt else ckpt
-            unet.load_state_dict(state_dict, strict=False)
+            unet.load_state_dict(ckpt["state_dict"], strict=False)
+
+            del ckpt
+            torch.cuda.empty_cache()
         else:
             resume_global_step = 0
 

@@ -5,7 +5,7 @@ from omegaconf import OmegaConf
 import argparse
 from datetime import datetime
 
-CONFIG_PATH = Path("configs/unet/second_stage.yaml")
+CONFIG_PATH = Path("configs/unet/stage2.yaml")
 CHECKPOINT_PATH = Path("checkpoints/latentsync_unet.pt")
 
 
@@ -89,7 +89,7 @@ def create_args(
 with gr.Blocks(title="LatentSync Video Processing") as demo:
     gr.Markdown(
         """
-    # LatentSync: Audio Conditioned Latent Diffusion Models for Lip Sync
+    # LatentSync: Taming Audio-Conditioned Latent Diffusion Models for Lip Sync with SyncNet Supervision
     Upload a video and audio file to process with LatentSync model.
 
     <div align="center">
@@ -123,7 +123,7 @@ with gr.Blocks(title="LatentSync Video Processing") as demo:
             with gr.Row():
                 guidance_scale = gr.Slider(
                     minimum=1.0,
-                    maximum=3.5,
+                    maximum=2.5,
                     value=1.5,
                     step=0.5,
                     label="Guidance Scale",

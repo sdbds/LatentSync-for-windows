@@ -17,7 +17,7 @@ from tqdm.auto import tqdm
 import torch
 import torch.nn as nn
 from einops import rearrange
-from latentsync.models.syncnet import SyncNet
+from latentsync.models.stable_syncnet import StableSyncNet
 from latentsync.data.syncnet_dataset import SyncNetDataset
 from diffusers import AutoencoderKL
 from omegaconf import OmegaConf
@@ -49,10 +49,10 @@ def main(config):
     )
 
     # Model
-    syncnet = SyncNet(OmegaConf.to_container(config.model)).to(device)
+    syncnet = StableSyncNet(OmegaConf.to_container(config.model)).to(device)
 
     print(f"Load checkpoint from: {config.ckpt.inference_ckpt_path}")
-    checkpoint = torch.load(config.ckpt.inference_ckpt_path, map_location=device)
+    checkpoint = torch.load(config.ckpt.inference_ckpt_path, map_location=device, weights_only=True)
 
     syncnet.load_state_dict(checkpoint["state_dict"])
     syncnet.to(dtype=torch.float16)
@@ -102,12 +102,12 @@ def main(config):
 
             if global_step >= num_val_batches:
                 progress_bar.close()
-                print(f"Accuracy score: {num_correct_preds / num_total_preds*100:.2f}%")
+                print(f"SyncNet Accuracy: {num_correct_preds / num_total_preds*100:.2f}%")
                 return
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Code to test the accuracy of expert lip-sync discriminator")
+    parser = argparse.ArgumentParser(description="Code to test the accuracy of SyncNet")
 
     parser.add_argument("--config_path", type=str, default="configs/syncnet/syncnet_16_latent.yaml")
     args = parser.parse_args()

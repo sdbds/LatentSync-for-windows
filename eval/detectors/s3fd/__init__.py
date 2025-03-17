@@ -6,24 +6,24 @@ from torchvision import transforms
 from .nets import S3FDNet
 from .box_utils import nms_
 
-PATH_WEIGHT = 'checkpoints/auxiliary/sfd_face.pth'
-img_mean = np.array([104., 117., 123.])[:, np.newaxis, np.newaxis].astype('float32')
+PATH_WEIGHT = "checkpoints/auxiliary/sfd_face.pth"
+img_mean = np.array([104.0, 117.0, 123.0])[:, np.newaxis, np.newaxis].astype("float32")
 
 
-class S3FD():
+class S3FD:
 
-    def __init__(self, device='cuda'):
+    def __init__(self, device="cuda"):
 
         tstamp = time.time()
         self.device = device
 
-        print('[S3FD] loading with', self.device)
+        print("[S3FD] loading with", self.device)
         self.net = S3FDNet(device=self.device).to(self.device)
-        state_dict = torch.load(PATH_WEIGHT, map_location=self.device)
+        state_dict = torch.load(PATH_WEIGHT, map_location=self.device, weights_only=True)
         self.net.load_state_dict(state_dict)
         self.net.eval()
-        print('[S3FD] finished loading (%.4f sec)' % (time.time() - tstamp))
-    
+        print("[S3FD] finished loading (%.4f sec)" % (time.time() - tstamp))
+
     def detect_faces(self, image, conf_th=0.8, scales=[1]):
 
         w, h = image.shape[1], image.shape[0]
@@ -37,7 +37,7 @@ class S3FD():
                 scaled_img = np.swapaxes(scaled_img, 1, 2)
                 scaled_img = np.swapaxes(scaled_img, 1, 0)
                 scaled_img = scaled_img[[2, 1, 0], :, :]
-                scaled_img = scaled_img.astype('float32')
+                scaled_img = scaled_img.astype("float32")
                 scaled_img -= img_mean
                 scaled_img = scaled_img[[2, 1, 0], :, :]
                 x = torch.from_numpy(scaled_img).unsqueeze(0).to(self.device)

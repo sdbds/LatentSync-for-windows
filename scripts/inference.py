@@ -13,17 +13,22 @@
 # limitations under the License.
 
 import argparse
+import os
 from omegaconf import OmegaConf
 import torch
 from diffusers import AutoencoderKL, DDIMScheduler
 from latentsync.models.unet import UNet3DConditionModel
 from latentsync.pipelines.lipsync_pipeline import LipsyncPipeline
-from diffusers.utils.import_utils import is_xformers_available
 from accelerate.utils import set_seed
 from latentsync.whisper.audio2feature import Audio2Feature
 
 
 def main(config, args):
+    if not os.path.exists(args.video_path):
+        raise RuntimeError(f"Video path '{args.video_path}' not found")
+    if not os.path.exists(args.audio_path):
+        raise RuntimeError(f"Audio path '{args.audio_path}' not found")
+
     # Check if the GPU supports float16
     is_fp16_supported = torch.cuda.is_available() and torch.cuda.get_device_capability()[0] > 7
     dtype = torch.float16 if is_fp16_supported else torch.float32
@@ -41,28 +46,29 @@ def main(config, args):
     else:
         raise NotImplementedError("cross_attention_dim must be 768 or 384")
 
-    audio_encoder = Audio2Feature(model_path=whisper_model_path, device="cuda", num_frames=config.data.num_frames)
+    audio_encoder = Audio2Feature(
+        model_path=whisper_model_path,
+        device="cuda",
+        num_frames=config.data.num_frames,
+        audio_feat_length=config.data.audio_feat_length,
+    )
 
     vae = AutoencoderKL.from_pretrained("stabilityai/sd-vae-ft-mse", torch_dtype=dtype)
     vae.config.scaling_factor = 0.18215
     vae.config.shift_factor = 0
 
-    unet, _ = UNet3DConditionModel.from_pretrained(
+    denoising_unet, _ = UNet3DConditionModel.from_pretrained(
         OmegaConf.to_container(config.model),
-        args.inference_ckpt_path,  # load checkpoint
+        args.inference_ckpt_path,
         device="cpu",
     )
 
-    unet = unet.to(dtype=dtype)
-
-    # set xformers
-    if is_xformers_available():
-        unet.enable_xformers_memory_efficient_attention()
+    denoising_unet = denoising_unet.to(dtype=dtype)
 
     pipeline = LipsyncPipeline(
         vae=vae,
         audio_encoder=audio_encoder,
-        unet=unet,
+        denoising_unet=denoising_unet,
         scheduler=scheduler,
     ).to("cuda")
 
@@ -84,6 +90,7 @@ def main(config, args):
         weight_dtype=dtype,
         width=config.data.resolution,
         height=config.data.resolution,
+        mask_image_path=config.data.mask_image_path,
     )
 
 

@@ -27,8 +27,8 @@ def remove_outdated_files(input_dir, begin_date, end_date):
 
 
 if __name__ == "__main__":
-    input_dir = "/mnt/bn/video-datasets/output/syncnet"
-    begin_date = "train-2024_06_19-16:25:44"
-    end_date = "train-2024_08_03-07:39:58"
+    input_dir = "/mnt/bn/video-datasets/output/unet"
+    begin_date = "train-2024_05_29-12:22:35"
+    end_date = "train-2024_09_26-00:10:46"
 
     remove_outdated_files(input_dir, begin_date, end_date)

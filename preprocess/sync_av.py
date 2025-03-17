@@ -61,6 +61,7 @@ def func(sync_conf_threshold, paths, device_id, process_temp_dir):
             av_offset, conf = syncnet_eval(
                 syncnet, syncnet_detector, video_input, syncnet_eval_results_dir, detect_results_dir
             )
+
             if conf >= sync_conf_threshold and abs(av_offset) <= 6:
                 os.makedirs(os.path.dirname(video_output), exist_ok=True)
                 if av_offset == 0:

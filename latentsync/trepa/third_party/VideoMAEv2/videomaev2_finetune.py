@@ -241,13 +241,17 @@ class Attention(nn.Module):
         qkv = qkv.reshape(B, N, 3, self.num_heads, -1).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
 
-        q = q * self.scale
-        attn = q @ k.transpose(-2, -1)
+        # Use PyTorch native implementation of FlashAttention-2
+        attn = F.scaled_dot_product_attention(q, k, v)
 
-        attn = attn.softmax(dim=-1)
-        attn = self.attn_drop(attn)
+        x = attn.transpose(1, 2).reshape(B, N, -1)
 
-        x = (attn @ v).transpose(1, 2).reshape(B, N, -1)
+        # Deprecated attn implementation, which consumes much more VRAM
+        # q = q * self.scale
+        # attn = q @ k.transpose(-2, -1)
+        # attn = attn.softmax(dim=-1)
+        # attn = self.attn_drop(attn)
+        # x = (attn @ v).transpose(1, 2).reshape(B, N, -1)
 
         x = self.proj(x)
         x = self.proj_drop(x)
@@ -506,12 +510,12 @@ class VisionTransformer(nn.Module):
 
         for blk in self.blocks:
             if self.with_cp:
-                x = cp.checkpoint(blk, x)
+                x = cp.checkpoint(blk, x, use_reentrant=False)
             else:
                 x = blk(x)
 
         # return self.fc_norm(x)
-        
+
         if self.fc_norm is not None:
             return self.fc_norm(x.mean(1))
         else:

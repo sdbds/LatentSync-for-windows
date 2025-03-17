@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import math
 import numpy as np
 from torch.utils.data import Dataset
 import torch
@@ -21,6 +22,7 @@ import cv2
 from ..utils.image_processor import ImageProcessor, load_fixed_mask
 from ..utils.audio import melspectrogram
 from decord import AudioReader, VideoReader, cpu
+import torch.nn.functional as F
 
 
 class UNetDataset(Dataset):
@@ -39,17 +41,12 @@ class UNetDataset(Dataset):
         self.resolution = config.data.resolution
         self.num_frames = config.data.num_frames
 
-        if self.num_frames == 16:
-            self.mel_window_length = 52
-        elif self.num_frames == 5:
-            self.mel_window_length = 16
-        else:
-            raise NotImplementedError("Only support 16 and 5 frames now")
+        self.mel_window_length = math.ceil(self.num_frames / 5 * 16)
 
         self.audio_sample_rate = config.data.audio_sample_rate
         self.video_fps = config.data.video_fps
         self.mask = config.data.mask
-        self.mask_image = load_fixed_mask(self.resolution)
+        self.mask_image = load_fixed_mask(self.resolution, config.data.mask_image_path)
         self.load_audio_data = config.model.add_audio_layer and config.run.use_syncnet
         self.audio_mel_cache_dir = config.data.audio_mel_cache_dir
         os.makedirs(self.audio_mel_cache_dir, exist_ok=True)
@@ -70,20 +67,20 @@ class UNetDataset(Dataset):
     def get_frames(self, video_reader: VideoReader):
         total_num_frames = len(video_reader)
 
-        start_idx = random.randint(self.num_frames // 2, total_num_frames - self.num_frames - self.num_frames // 2)
-        frames_index = np.arange(start_idx, start_idx + self.num_frames, dtype=int)
+        start_idx = random.randint(0, total_num_frames - self.num_frames)
+        gt_frames_index = np.arange(start_idx, start_idx + self.num_frames, dtype=int)
 
         while True:
-            wrong_start_idx = random.randint(0, total_num_frames - self.num_frames)
-            if wrong_start_idx > start_idx - self.num_frames and wrong_start_idx < start_idx + self.num_frames:
+            ref_start_idx = random.randint(0, total_num_frames - self.num_frames)
+            if ref_start_idx > start_idx - self.num_frames and ref_start_idx < start_idx + self.num_frames:
                 continue
-            wrong_frames_index = np.arange(wrong_start_idx, wrong_start_idx + self.num_frames, dtype=int)
+            ref_frames_index = np.arange(ref_start_idx, ref_start_idx + self.num_frames, dtype=int)
             break
 
-        frames = video_reader.get_batch(frames_index).asnumpy()
-        wrong_frames = video_reader.get_batch(wrong_frames_index).asnumpy()
+        gt_frames = video_reader.get_batch(gt_frames_index).asnumpy()
+        ref_frames = video_reader.get_batch(ref_frames_index).asnumpy()
 
-        return frames, wrong_frames, start_idx
+        return gt_frames, ref_frames, start_idx
 
     def worker_init_fn(self, worker_id):
         # Initialize the face mesh object in each worker process,
@@ -96,7 +93,7 @@ class UNetDataset(Dataset):
         )
 
     def __getitem__(self, idx):
-        image_processor = getattr(self, f"image_processor_{self.worker_id}")
+        image_processor: ImageProcessor = getattr(self, f"image_processor_{self.worker_id}")
         while True:
             try:
                 idx = random.randint(0, len(self) - 1)
@@ -109,7 +106,7 @@ class UNetDataset(Dataset):
                 if len(vr) < 3 * self.num_frames:
                     continue
 
-                continuous_frames, ref_frames, start_idx = self.get_frames(vr)
+                gt_frames, ref_frames, start_idx = self.get_frames(vr)
 
                 if self.load_audio_data:
                     mel_cache_path = os.path.join(
@@ -118,7 +115,7 @@ class UNetDataset(Dataset):
 
                     if os.path.isfile(mel_cache_path):
                         try:
-                            original_mel = torch.load(mel_cache_path)
+                            original_mel = torch.load(mel_cache_path, weights_only=True)
                         except Exception as e:
                             print(f"{type(e).__name__} - {e} - {mel_cache_path}")
                             os.remove(mel_cache_path)
@@ -135,14 +132,11 @@ class UNetDataset(Dataset):
                 else:
                     mel = []
 
-                gt, masked_gt, mask = image_processor.prepare_masks_and_masked_images(
-                    continuous_frames, affine_transform=False
-                )
+                gt_pixel_values, masked_pixel_values, masks = image_processor.prepare_masks_and_masked_images(
+                    gt_frames, affine_transform=False
+                )  # (f, c, h, w)
+                ref_pixel_values = image_processor.process_images(ref_frames)
 
-                if self.mask == "fix_mask":
-                    ref, _, _ = image_processor.prepare_masks_and_masked_images(ref_frames, affine_transform=False)
-                else:
-                    ref = image_processor.process_images(ref_frames)
                 vr.seek(0)  # avoid memory leak
                 break
 
@@ -152,11 +146,11 @@ class UNetDataset(Dataset):
                     vr.seek(0)  # avoid memory leak
 
         sample = dict(
-            gt=gt,
-            masked_gt=masked_gt,
-            ref=ref,
+            gt_pixel_values=gt_pixel_values,
+            masked_pixel_values=masked_pixel_values,
+            ref_pixel_values=ref_pixel_values,
             mel=mel,
-            mask=mask,
+            masks=masks,
             video_path=video_path,
             start_idx=start_idx,
         )

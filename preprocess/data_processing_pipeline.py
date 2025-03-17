@@ -43,14 +43,14 @@ def data_processing_pipeline(
     segmented_dir = os.path.join(os.path.dirname(input_dir), "segmented")
     segment_videos_multiprocessing(shot_dir, segmented_dir, total_num_workers)
 
-    print("Filtering high resolution...")
-    high_resolution_dir = os.path.join(os.path.dirname(input_dir), "high_resolution")
-    filter_high_resolution_multiprocessing(segmented_dir, high_resolution_dir, resolution, total_num_workers)
+    # print("Filtering high resolution...")
+    # high_resolution_dir = os.path.join(os.path.dirname(input_dir), "high_resolution")
+    # filter_high_resolution_multiprocessing(segmented_dir, high_resolution_dir, resolution, total_num_workers)
 
     print("Affine transforming videos...")
     affine_transformed_dir = os.path.join(os.path.dirname(input_dir), "affine_transformed")
     affine_transform_multi_gpus(
-        high_resolution_dir, affine_transformed_dir, temp_dir, resolution, per_gpu_num_workers // 2
+        segmented_dir, affine_transformed_dir, temp_dir, resolution, per_gpu_num_workers // 2
     )
 
     print("Removing incorrect affined videos...")

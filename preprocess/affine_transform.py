@@ -45,7 +45,7 @@ class FaceDetector:
         video_frames = read_video(video_path, change_fps=False)
         results = []
         for frame in video_frames:
-            frame, _, _ = self.image_processor.affine_transform(frame)
+            frame, _, _ = self.image_processor.affine_transform(frame, allow_multi_faces=False)
             results.append(frame)
         results = torch.stack(results)
 
@@ -128,8 +128,8 @@ def affine_transform_multi_gpus(input_dir, output_dir, temp_dir, resolution, num
 
 
 if __name__ == "__main__":
-    input_dir = "/mnt/bn/maliva-gen-ai-v2/chunyu.li/avatars/resampled/train"
-    output_dir = "/mnt/bn/maliva-gen-ai-v2/chunyu.li/avatars/affine_transformed/train"
+    input_dir = "/mnt/bn/maliva-gen-ai-v2/chunyu.li/willdata2/segmented"
+    output_dir = "/mnt/bn/maliva-gen-ai-v2/chunyu.li/willdata2/affine_transformed"
     temp_dir = "temp"
     resolution = 256
     num_workers = 10  # How many processes per device

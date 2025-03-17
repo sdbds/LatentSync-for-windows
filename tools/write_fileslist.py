@@ -16,30 +16,23 @@ from tqdm import tqdm
 from latentsync.utils.util import gather_video_paths_recursively
 
 
-def write_fileslist(fileslist_path):
-    with open(fileslist_path, "w") as _:
-        pass
+class FileslistWriter:
+    def __init__(self, fileslist_path: str):
+        self.fileslist_path = fileslist_path
+        with open(fileslist_path, "w") as _:
+            pass
 
-
-def append_fileslist(fileslist_path, video_paths):
-    with open(fileslist_path, "a") as f:
-        for video_path in tqdm(video_paths):
-            f.write(f"{video_path}\n")
-
-
-def process_input_dir(fileslist_path, input_dir):
-    print(f"Processing input dir: {input_dir}")
-    video_paths = gather_video_paths_recursively(input_dir)
-    append_fileslist(fileslist_path, video_paths)
+    def append_dataset(self, dataset_dir: str):
+        print(f"Dataset dir: {dataset_dir}")
+        video_paths = gather_video_paths_recursively(dataset_dir)
+        with open(self.fileslist_path, "a") as f:
+            for video_path in tqdm(video_paths):
+                f.write(f"{video_path}\n")
 
 
 if __name__ == "__main__":
-    fileslist_path = "/mnt/bn/maliva-gen-ai-v2/chunyu.li/fileslist/all_data_v6.txt"
+    fileslist_path = "/mnt/bn/maliva-gen-ai-v2/chunyu.li/fileslist/data_v9_syncnet.txt"
 
-    write_fileslist(fileslist_path)
-    process_input_dir(fileslist_path, "/mnt/bn/maliva-gen-ai-v2/chunyu.li/VoxCeleb2/high_visual_quality/train")
-    process_input_dir(fileslist_path, "/mnt/bn/maliva-gen-ai-v2/chunyu.li/HDTF/high_visual_quality/train")
-    process_input_dir(fileslist_path, "/mnt/bn/maliva-gen-ai-v2/chunyu.li/avatars/high_visual_quality/train")
-    process_input_dir(fileslist_path, "/mnt/bn/maliva-gen-ai-v2/chunyu.li/multilingual/high_visual_quality")
-    process_input_dir(fileslist_path, "/mnt/bn/maliva-gen-ai-v2/chunyu.li/celebv_text/high_visual_quality/train")
-    process_input_dir(fileslist_path, "/mnt/bn/maliva-gen-ai-v2/chunyu.li/youtube/high_visual_quality")
+    writer = FileslistWriter(fileslist_path)
+    writer.append_dataset("/mnt/bn/maliva-gen-ai-v2/chunyu.li/VoxCeleb2/high_visual_quality/train")
+    writer.append_dataset("/mnt/bn/maliva-gen-ai-v2/chunyu.li/HDTF/high_visual_quality/train")

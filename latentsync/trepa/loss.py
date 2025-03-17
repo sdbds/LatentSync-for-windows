@@ -23,8 +23,9 @@ class TREPALoss:
         self,
         device="cuda",
         ckpt_path="checkpoints/auxiliary/vit_g_hybrid_pt_1200e_ssv2_ft.pth",
+        with_cp=False,
     ):
-        self.model = load_videomae_model(device, ckpt_path).eval().to(dtype=torch.float16)
+        self.model = load_videomae_model(device, ckpt_path, with_cp).eval().to(dtype=torch.float16)
         self.model.requires_grad_(False)
 
     def __call__(self, videos_fake, videos_real):
@@ -53,10 +54,12 @@ class TREPALoss:
 
 
 if __name__ == "__main__":
+    torch.manual_seed(42)
+
     # input shape: (b, c, f, h, w)
     videos_fake = torch.randn(2, 3, 16, 256, 256, requires_grad=True).to(device="cuda", dtype=torch.float16)
     videos_real = torch.randn(2, 3, 16, 256, 256, requires_grad=True).to(device="cuda", dtype=torch.float16)
 
-    trepa_loss = TREPALoss(device="cuda")
+    trepa_loss = TREPALoss(device="cuda", with_cp=True)
     loss = trepa_loss(videos_fake, videos_real)
     print(loss)

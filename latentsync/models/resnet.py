@@ -70,11 +70,6 @@ class Upsample3D(nn.Module):
         if dtype == torch.bfloat16:
             hidden_states = hidden_states.to(dtype)
 
-        # if self.use_conv:
-        #     if self.name == "conv":
-        #         hidden_states = self.conv(hidden_states)
-        #     else:
-        #         hidden_states = self.Conv2d_0(hidden_states)
         hidden_states = self.conv(hidden_states)
 
         return hidden_states
@@ -147,13 +142,12 @@ class ResnetBlock3D(nn.Module):
         self.conv1 = InflatedConv3d(in_channels, out_channels, kernel_size=3, stride=1, padding=1)
 
         if temb_channels is not None:
-            time_emb_proj_out_channels = out_channels
-            # if self.time_embedding_norm == "default":
-            #     time_emb_proj_out_channels = out_channels
-            # elif self.time_embedding_norm == "scale_shift":
-            #     time_emb_proj_out_channels = out_channels * 2
-            # else:
-            #     raise ValueError(f"unknown time_embedding_norm : {self.time_embedding_norm} ")
+            if self.time_embedding_norm == "default":
+                time_emb_proj_out_channels = out_channels
+            elif self.time_embedding_norm == "scale_shift":
+                time_emb_proj_out_channels = out_channels * 2
+            else:
+                raise ValueError(f"unknown time_embedding_norm : {self.time_embedding_norm} ")
 
             self.time_emb_proj = torch.nn.Linear(temb_channels, time_emb_proj_out_channels)
         else:

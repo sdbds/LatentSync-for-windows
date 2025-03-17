@@ -19,8 +19,8 @@ from omegaconf import OmegaConf
 import shutil
 
 from latentsync.data.syncnet_dataset import SyncNetDataset
-from latentsync.models.syncnet import SyncNet
-from latentsync.models.syncnet_wav2lip import SyncNetWav2Lip
+from latentsync.models.stable_syncnet import StableSyncNet
+from latentsync.models.wav2lip_syncnet import Wav2LipSyncNet
 from latentsync.utils.util import gather_loss, plot_loss_chart
 from accelerate.utils import set_seed
 
@@ -96,7 +96,7 @@ def main(config):
         drop_last=True,
         worker_init_fn=train_dataset.worker_init_fn,
     )
-    
+
     num_samples_limit = 640
 
     val_batch_size = min(
@@ -114,8 +114,8 @@ def main(config):
     )
 
     # Model
-    syncnet = SyncNet(OmegaConf.to_container(config.model)).to(device)
-    # syncnet = SyncNetWav2Lip().to(device)
+    syncnet = StableSyncNet(OmegaConf.to_container(config.model)).to(device)
+    # syncnet = Wav2LipSyncNet().to(device)
 
     optimizer = torch.optim.AdamW(
         list(filter(lambda p: p.requires_grad, syncnet.parameters())), lr=config.optimizer.lr
@@ -124,7 +124,7 @@ def main(config):
     if config.ckpt.resume_ckpt_path != "":
         if is_main_process:
             logger.info(f"Load checkpoint from: {config.ckpt.resume_ckpt_path}")
-        ckpt = torch.load(config.ckpt.resume_ckpt_path, map_location=device)
+        ckpt = torch.load(config.ckpt.resume_ckpt_path, map_location=device, weights_only=True)
 
         syncnet.load_state_dict(ckpt["state_dict"])
         global_step = ckpt["global_step"]
@@ -144,8 +144,6 @@ def main(config):
 
     num_update_steps_per_epoch = math.ceil(len(train_dataloader))
     num_train_epochs = math.ceil(config.run.max_train_steps / num_update_steps_per_epoch)
-    # validation_steps = int(config.ckpt.save_ckpt_steps // 5)
-    # validation_steps = 100
 
     if is_main_process:
         logger.info("***** Running training *****")
@@ -164,7 +162,7 @@ def main(config):
     )
 
     # Support mixed-precision training
-    scaler = torch.cuda.amp.GradScaler() if config.run.mixed_precision_training else None
+    scaler = torch.amp.GradScaler("cuda") if config.run.mixed_precision_training else None
 
     for epoch in range(first_epoch, num_train_epochs):
         train_dataloader.sampler.set_epoch(epoch)
@@ -205,8 +203,6 @@ def main(config):
             if config.data.lower_half:
                 height = frames.shape[2]
                 frames = frames[:, :, height // 2 :, :]
-
-            # audio_embeds = wav2vec_encoder(audio_samples).last_hidden_state
 
             # Mixed-precision training
             with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=config.run.mixed_precision_training):
@@ -275,7 +271,7 @@ def main(config):
                     ("Val loss", val_step_list, val_loss_list),
                 )
 
-            progress_bar.set_postfix({"step_loss": global_average_loss})
+            progress_bar.set_postfix({"step_loss": global_average_loss, "epoch": epoch})
             if global_step >= config.run.max_train_steps:
                 break
 
@@ -325,8 +321,8 @@ def validation(val_dataloader, device, syncnet, cosine_loss, latent_space, lower
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Code to train the expert lip-sync discriminator")
-    parser.add_argument("--config_path", type=str, default="configs/syncnet/syncnet_16_vae.yaml")
+    parser = argparse.ArgumentParser(description="Code to train the SyncNet")
+    parser.add_argument("--config_path", type=str, default="configs/syncnet/syncnet_16_pixel.yaml")
     args = parser.parse_args()
 
     # Load a configuration file

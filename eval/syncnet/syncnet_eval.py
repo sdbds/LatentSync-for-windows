@@ -60,9 +60,7 @@ class SyncNetEval(torch.nn.Module):
         # command = f"ffmpeg -loglevel error -nostdin -y -i {video_path} -vf scale='224:224' {temp_video_path}"
         # subprocess.call(command, shell=True)
 
-        command = (
-            f"ffmpeg -loglevel error -nostdin -y -i {video_path} -f image2 {os.path.join(temp_dir, '%06d.jpg')}"
-        )
+        command = f"ffmpeg -loglevel error -nostdin -y -i {video_path} -f image2 {os.path.join(temp_dir, '%06d.jpg')}"
         subprocess.call(command, shell=True, stdout=None)
 
         command = f"ffmpeg -loglevel error -nostdin -y -i {video_path} -async 1 -ac 1 -vn -acodec pcm_s16le -ar 16000 {os.path.join(temp_dir, 'audio.wav')}"
@@ -211,7 +209,7 @@ class SyncNetEval(torch.nn.Module):
         return im_feat
 
     def loadParameters(self, path):
-        loaded_state = torch.load(path, map_location=lambda storage, loc: storage)
+        loaded_state = torch.load(path, map_location=lambda storage, loc: storage, weights_only=True)
 
         self_state = self.__S__.state_dict()
 

@@ -11,10 +11,10 @@ import torch.nn.functional as F
 from torch import nn
 
 from diffusers.configuration_utils import ConfigMixin, register_to_config
-from diffusers.modeling_utils import ModelMixin
+from diffusers.models import ModelMixin
 from diffusers.utils import BaseOutput
-from diffusers.utils.import_utils import is_xformers_available
-from diffusers.models.attention import CrossAttention, FeedForward
+from diffusers.models.attention import FeedForward
+from .attention import Attention
 
 from einops import rearrange, repeat
 import math
@@ -24,13 +24,6 @@ from .utils import zero_module
 @dataclass
 class TemporalTransformer3DModelOutput(BaseOutput):
     sample: torch.FloatTensor
-
-
-if is_xformers_available():
-    import xformers
-    import xformers.ops
-else:
-    xformers = None
 
 
 def get_motion_module(in_channels, motion_module_type: str, motion_module_kwargs: dict):
@@ -241,7 +234,7 @@ class PositionalEncoding(nn.Module):
         return self.dropout(x)
 
 
-class VersatileAttention(CrossAttention):
+class VersatileAttention(Attention):
     def __init__(
         self,
         attention_mode=None,
@@ -267,41 +260,35 @@ class VersatileAttention(CrossAttention):
         return f"(Module Info) Attention_Mode: {self.attention_mode}, Is_Cross_Attention: {self.is_cross_attention}"
 
     def forward(self, hidden_states, encoder_hidden_states=None, attention_mask=None, video_length=None):
-        batch_size, sequence_length, _ = hidden_states.shape
-
         if self.attention_mode == "Temporal":
-            d = hidden_states.shape[1]
-            hidden_states = rearrange(hidden_states, "(b f) d c -> (b d) f c", f=video_length)
+            s = hidden_states.shape[1]
+            hidden_states = rearrange(hidden_states, "(b f) s c -> (b s) f c", f=video_length)
 
             if self.pos_encoder is not None:
                 hidden_states = self.pos_encoder(hidden_states)
 
+            ##### This section will not be executed #####
             encoder_hidden_states = (
-                repeat(encoder_hidden_states, "b n c -> (b d) n c", d=d)
+                repeat(encoder_hidden_states, "b n c -> (b s) n c", s=s)
                 if encoder_hidden_states is not None
                 else encoder_hidden_states
             )
+            #############################################
         else:
             raise NotImplementedError
-
-        # encoder_hidden_states = encoder_hidden_states
 
         if self.group_norm is not None:
             hidden_states = self.group_norm(hidden_states.transpose(1, 2)).transpose(1, 2)
 
         query = self.to_q(hidden_states)
-        dim = query.shape[-1]
-        query = self.reshape_heads_to_batch_dim(query)
-
-        if self.added_kv_proj_dim is not None:
-            raise NotImplementedError
+        query = self.split_heads(query)
 
         encoder_hidden_states = encoder_hidden_states if encoder_hidden_states is not None else hidden_states
         key = self.to_k(encoder_hidden_states)
         value = self.to_v(encoder_hidden_states)
 
-        key = self.reshape_heads_to_batch_dim(key)
-        value = self.reshape_heads_to_batch_dim(value)
+        key = self.split_heads(key)
+        value = self.split_heads(value)
 
         if attention_mask is not None:
             if attention_mask.shape[-1] != query.shape[1]:
@@ -309,16 +296,10 @@ class VersatileAttention(CrossAttention):
                 attention_mask = F.pad(attention_mask, (0, target_length), value=0.0)
                 attention_mask = attention_mask.repeat_interleave(self.heads, dim=0)
 
-        # attention, what we cannot get enough of
-        if self._use_memory_efficient_attention_xformers:
-            hidden_states = self._memory_efficient_attention_xformers(query, key, value, attention_mask)
-            # Some versions of xformers return output in fp32, cast it back to the dtype of the input
-            hidden_states = hidden_states.to(query.dtype)
-        else:
-            if self._slice_size is None or query.shape[0] // self._slice_size == 1:
-                hidden_states = self._attention(query, key, value, attention_mask)
-            else:
-                hidden_states = self._sliced_attention(query, key, value, sequence_length, dim, attention_mask)
+        # Use PyTorch native implementation of FlashAttention-2
+        hidden_states = F.scaled_dot_product_attention(query, key, value, attn_mask=attention_mask)
+
+        hidden_states = self.concat_heads(hidden_states)
 
         # linear proj
         hidden_states = self.to_out[0](hidden_states)
@@ -327,6 +308,6 @@ class VersatileAttention(CrossAttention):
         hidden_states = self.to_out[1](hidden_states)
 
         if self.attention_mode == "Temporal":
-            hidden_states = rearrange(hidden_states, "(b d) f c -> (b f) d c", d=d)
+            hidden_states = rearrange(hidden_states, "(b s) f c -> (b f) s c", s=s)
 
         return hidden_states

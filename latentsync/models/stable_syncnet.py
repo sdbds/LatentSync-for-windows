@@ -16,18 +16,17 @@ import torch
 from torch import nn
 from einops import rearrange
 from torch.nn import functional as F
-from ..utils.util import cosine_loss
+from .attention import Attention
 
 import torch.nn as nn
 import torch.nn.functional as F
 
-from diffusers.models.attention import CrossAttention, FeedForward
-from diffusers.utils.import_utils import is_xformers_available
+from diffusers.models.attention import FeedForward
 from einops import rearrange
 
 
-class SyncNet(nn.Module):
-    def __init__(self, config):
+class StableSyncNet(nn.Module):
+    def __init__(self, config, gradient_checkpointing=False):
         super().__init__()
         self.audio_encoder = DownEncoder2D(
             in_channels=config["audio_encoder"]["in_channels"],
@@ -35,6 +34,7 @@ class SyncNet(nn.Module):
             downsample_factors=config["audio_encoder"]["downsample_factors"],
             dropout=config["audio_encoder"]["dropout"],
             attn_blocks=config["audio_encoder"]["attn_blocks"],
+            gradient_checkpointing=gradient_checkpointing,
         )
 
         self.visual_encoder = DownEncoder2D(
@@ -43,6 +43,7 @@ class SyncNet(nn.Module):
             downsample_factors=config["visual_encoder"]["downsample_factors"],
             dropout=config["visual_encoder"]["dropout"],
             attn_blocks=config["visual_encoder"]["attn_blocks"],
+            gradient_checkpointing=gradient_checkpointing,
         )
 
         self.eval()
@@ -135,11 +136,6 @@ class ResnetBlock2D(nn.Module):
 class AttentionBlock2D(nn.Module):
     def __init__(self, query_dim, norm_num_groups=32, dropout=0.0):
         super().__init__()
-        if not is_xformers_available():
-            raise ModuleNotFoundError(
-                "You have to install xformers to enable memory efficient attetion", name="xformers"
-            )
-        # inner_dim = dim_head * heads
         self.norm1 = torch.nn.GroupNorm(num_groups=norm_num_groups, num_channels=query_dim, eps=1e-6, affine=True)
         self.norm2 = nn.LayerNorm(query_dim)
         self.norm3 = nn.LayerNorm(query_dim)
@@ -149,8 +145,7 @@ class AttentionBlock2D(nn.Module):
         self.conv_in = nn.Conv2d(query_dim, query_dim, kernel_size=1, stride=1, padding=0)
         self.conv_out = nn.Conv2d(query_dim, query_dim, kernel_size=1, stride=1, padding=0)
 
-        self.attn = CrossAttention(query_dim=query_dim, heads=8, dim_head=query_dim // 8, dropout=dropout, bias=True)
-        self.attn._use_memory_efficient_attention_xformers = True
+        self.attn = Attention(query_dim=query_dim, heads=8, dim_head=query_dim // 8, dropout=dropout, bias=True)
 
     def forward(self, hidden_states):
         assert hidden_states.dim() == 4, f"Expected hidden_states to have ndim=4, but got ndim={hidden_states.dim()}."
@@ -163,6 +158,7 @@ class AttentionBlock2D(nn.Module):
         hidden_states = rearrange(hidden_states, "b c h w -> b (h w) c")
 
         norm_hidden_states = self.norm2(hidden_states)
+
         hidden_states = self.attn(norm_hidden_states, attention_mask=None) + hidden_states
         hidden_states = self.ff(self.norm3(hidden_states)) + hidden_states
 
@@ -184,9 +180,11 @@ class DownEncoder2D(nn.Module):
         attn_blocks=[1, 1, 1, 1],
         dropout: float = 0.0,
         act_fn="silu",
+        gradient_checkpointing=False,
     ):
         super().__init__()
         self.layers_per_block = layers_per_block
+        self.gradient_checkpointing = gradient_checkpointing
 
         # in
         self.conv_in = nn.Conv2d(in_channels, block_out_channels[0], kernel_size=3, stride=1, padding=1)
@@ -198,7 +196,6 @@ class DownEncoder2D(nn.Module):
         for i, block_out_channel in enumerate(block_out_channels):
             input_channels = output_channels
             output_channels = block_out_channel
-            # is_final_block = i == len(block_out_channels) - 1
 
             down_block = ResnetBlock2D(
                 in_channels=input_channels,
@@ -224,7 +221,10 @@ class DownEncoder2D(nn.Module):
 
         # down
         for down_block in self.down_blocks:
-            hidden_states = down_block(hidden_states)
+            if self.gradient_checkpointing:
+                hidden_states = torch.utils.checkpoint.checkpoint(down_block, hidden_states, use_reentrant=False)
+            else:
+                hidden_states = down_block(hidden_states)
 
         # post-process
         hidden_states = self.norm_out(hidden_states)

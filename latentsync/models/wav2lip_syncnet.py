@@ -5,7 +5,7 @@ from torch import nn
 from torch.nn import functional as F
 
 
-class SyncNetWav2Lip(nn.Module):
+class Wav2LipSyncNet(nn.Module):
     def __init__(self, act_fn="leaky"):
         super().__init__()
 
