@@ -114,7 +114,7 @@ Check "Install main requirements failed"
 
 $download_hy = Read-Host "Download train and inference model, if n just download inference model. default n.[y/n]"
 if ($download_hy -eq "y" -or $download_hy -eq "Y") {
-    huggingface-cli download chunyu-li/LatentSync --local-dir checkpoints --exclude "*.git*" "README.md"
+    huggingface-cli download ByteDance/LatentSync-1.5 --local-dir checkpoints --exclude "*.git*" "README.md"
 
     # Create torch directory and its subdirectories
     New-Item -ItemType Directory -Force -Path "torch/hub/checkpoints" | Out-Null
@@ -125,7 +125,7 @@ if ($download_hy -eq "y" -or $download_hy -eq "Y") {
     Move-Item -Path "$PSScriptRoot/checkpoints/auxiliary/vgg16-397923af.pth" -Destination "torch/hub/checkpoints/vgg16-397923af.pth" -Force
 }
 else {
-    huggingface-cli download chunyu-li/LatentSync --local-dir checkpoints --include "*latentsync_unet.pt" "*tiny.pt" "*s3fd-619a316812.pth" "*2DFAN4-cd938726ad.zip"
+    huggingface-cli download ByteDance/LatentSync-1.5 --local-dir checkpoints --include "*latentsync_unet.pt" "*tiny.pt" "*s3fd-619a316812.pth" "*2DFAN4-cd938726ad.zip"
 
     # Create torch directory and its subdirectories
     New-Item -ItemType Directory -Force -Path "torch/hub/checkpoints" | Out-Null
